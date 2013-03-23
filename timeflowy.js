@@ -96,7 +96,10 @@ tf.readCookie = function(headers) {
 };
       
 tf.hasValidCookie = function() {
-  return tf.config.cookie && tf.config.cookie.sessionid && tf.config.cookie.expires;  // TODO: parse time
+  return tf.config.cookie
+      && tf.config.cookie.sessionid
+      && tf.config.cookie.expires
+      && Date.parse(tf.config.cookie.expires) > Date.now(); 
 }
 
 /* --- Begin --- */
