@@ -55,6 +55,10 @@ tf.login = function(opt_callback) {
   });
   post_req.write(post_data);
   post_req.end();
+
+  post_req.on('error', function(error) {
+    tf.writeError(error);
+  });
 };
 
 tf.updateConfigFile = function() {
@@ -64,7 +68,7 @@ tf.updateConfigFile = function() {
 }
 
 tf.writeError = function(message) {
-  console.log(message);
+  console.error(message);
   if (tf.response) {
     tf.response.writeHead(500, {"Content-Type": "text/plain"});
     tf.response.write(message);
@@ -74,24 +78,40 @@ tf.writeError = function(message) {
 };
 
 tf.getPage = function() {
-    tf.response.writeHead(200, {"Content-Type": "text/plain"});
-    tf.response.write("getPage()");
-    tf.response.end();
-    tf.response = null;
-}
+  var get_options = {
+    host: 'workflowy.com',
+    port: '443',
+    path: '/',
+    method: 'GET',
+    headers: {
+      'Cookie': 'sessionid=' + tf.config.cookie.sessionid,
+      'Host' : 'workflowy.com',
+      'Referer': 'https://workflowy.com/',
+      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.19 (KHTML, like Gecko) Ubuntu/10.04 Chromium/18.0.1025.168 Chrome/18.0.1025.168 Safari/535.19'
+    }
+  };
+  var get_req = https.request(get_options, function(result) {
+    result.on('data', function(data) {
+      tf.response.writeHead(200, {"Content-Type": "text/plain"});
+      tf.response.write(data);
+      tf.response.end();
+      tf.response = null;
+    });
+  });
+  get_req.end();
+
+  get_req.on('error', function(error) {
+    tf.writeError(error);
+  });
+};
 
 tf.readCookie = function(headers) {
   tf.config.cookie = {};
   var cookieText = headers['set-cookie'] && headers['set-cookie'][0];
   cookieText.split('; ').forEach(function(item) {
     var keyVal = item.split('=');
-    switch (keyVal[0]) {
-    case "sessionid":
-      tf.config.cookie.sessionid = keyVal[1];
-      break;
-    case "expires":
-      tf.config.cookie.expires = keyVal[1];
-      break;
+    if (keyVal[0] == 'sessionid' || keyVal[0] == 'expires') {
+      tf.config.cookie[keyVal[0]] = keyVal[1];
     }
   });
 };
