@@ -7,21 +7,11 @@ var querystring = require('querystring');
 var tf = {};
 
 tf.readConfigFile = function() {
-  fs.readFile('config.json', 'utf-8', function (err, data) {
-    if (err) {
-      tf.writeError("FATAL file IO error: " + err);
-      process.exit(-2);
-    }
-    if (data) {
-      tf.config = JSON.parse(data);
-      if (!tf.hasValidCookie()) {
-        tf.login();
-      }
-    } else {
-      tf.writeError("FATAL file IO error: no data");
-      process.exit(-1);
-    }
-  });
+  var json = fs.readFileSync('config.json');
+  tf.config = JSON.parse(json);
+  if (!tf.hasValidCookie()) {
+    tf.login();
+  }
 }
 
 tf.login = function(opt_callback) {
