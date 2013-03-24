@@ -77,7 +77,7 @@ tf.updateConfigFile = function() {
 tf.writeError = function(message) {
   console.error(message);
   if (tf.response) {
-    tf.response.writeHead(500, {"Content-Type": "text/plain"});
+    tf.response.writeHead(500, {'Content-Type': 'text/plain'});
     tf.response.write(message);
     tf.response.end();
     tf.response = null;
@@ -86,7 +86,7 @@ tf.writeError = function(message) {
 
 tf.writeResponse = function(data) {
   if (tf.response != null) {
-    tf.response.writeHead(200, {"Content-Type": "text/plain"});
+    tf.response.writeHead(200, {'Content-Type': 'text/plain'});
     tf.response.write(data);
     tf.response.end();
     tf.response = null;
@@ -139,7 +139,7 @@ tf.getPage = function() {
 tf.loadProjectTreeScript = function(scriptSrc) {
   var get_options = tf.getGetOptions(scriptSrc);
   var get_req = https.request(get_options, function(result) {
-    var scriptText = "";
+    var scriptText = '';
     result.on('data', function(data) {
       scriptText += data.toString();
     });
