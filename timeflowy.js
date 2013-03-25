@@ -313,6 +313,13 @@ tf.readConfigFile();
 
 // Start the server.
 http.createServer(function(request, response) {
+  // TODO: something smarter than hardcoding the key
+  if (request.url.search(tf.config.key) == -1) {
+    response.writeHead(403, {'Content-Type': 'text/plain'});
+    response.write('Nope.');
+    response.end();
+    return;
+  }
   tf.events = [];
   tf.response = response;
   if (tf.hasValidCookie()) {
