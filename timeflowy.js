@@ -5,10 +5,12 @@ var icalendar = require('icalendar');
 var moment = require('moment');
 var querystring = require('querystring');
 
+var CONFIG_FILE = __dirname + '/config.json';
+
 var tf = {};
 
 tf.readConfigFile = function() {
-  var json = fs.readFileSync('config.json');
+  var json = fs.readFileSync(CONFIG_FILE);
   tf.config = JSON.parse(json);
   if (!tf.hasValidCookie()) {
     tf.login();
@@ -70,7 +72,7 @@ tf.hasValidCookie = function() {
 }
 
 tf.updateConfigFile = function() {
-  fs.writeFile('config.json', JSON.stringify(tf.config, null, 2), function(err) {
+  fs.writeFile(CONFIG_FILE, JSON.stringify(tf.config, null, 2), function(err) {
     if (err) throw err;
   });
 }
