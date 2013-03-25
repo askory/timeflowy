@@ -1,6 +1,7 @@
 var fs = require('fs');
 var http = require('http');
 var https = require('https');
+var icalendar = require('icalendar');
 var moment = require('moment');
 var querystring = require('querystring');
 
@@ -166,8 +167,11 @@ tf.findMainInfo = function(scriptText) {
       var json = checkAssignment[1].substr(0, checkAssignment[1].length - 1);
       var treeInfo = JSON.parse(json);
       // There is actually no root node, so make a dummy one with title "Root."
-      tf.crawlTree({nm : 'Root'}, treeInfo.rootProjectChildren);
-      tf.writeResponse(tf.events.toString());
+      var root = {nm : 'Root'};
+      treeInfo.rootProjectChildren.forEach(function(child) {
+        tf.crawlTree(root, child);
+      });
+      tf.makeCalendar();
       break;
     }
   }
@@ -177,64 +181,121 @@ tf.findMainInfo = function(scriptText) {
 };
 
 tf.crawlTree = function(parent, node) {
-  if (node.no) {  // 'no' for "note"
-    // date annotations should alone on just one line of the note
-    var lines = node.no.split('\n');
-    var start, end;
-    for (var i = 0; i < lines.length; i++) {
-      var range = line.split(tf.config.range_delimiter);
-      if (range.length == 2) {
-        // the first part of the range must always have a date but may not have a time
-        start = moment(range[0], config.date_time_format);
-        if (start._is_valid === false) {
-           // no time specified, second part of range must only be a date
-           if (start.year() === 0) {
-             continue;  // actually, not a date at all, bail
-           }
-           end = moment(range[1], config.date_format);
-        } else {
-          // time was specified, second part could be date_time or just time
-          end = moment(range[1], config.date_time_format);
-          if (end._is_valid === false) {
-            var endTime = moment(range[1], config.time_format);
-            end = moment([start.year(),
-                          start.month(),
-                          start.day(),
-                          endTime.hour(),
-                          endTime.minute()]);
-          }
-        }
-      } else {
-        start = moment(range[0], config.date_time_format);
-        if (start._is_valid === false) {
-          // just a date specified
-          if (start.year() === 0) {
-            continue;  // actually, not a date at all, bail
-          }
-          end = start;
-        } else {
-          end = moment(start).add('m', config.default_duration_minutes);
-        }
-      }
-    }
-    if (start && end) {
-      tf.events.push(new tf.Event(start, end));
-    }
+  var event = tf.Event.fromNode(parent, node);
+  if (event) {
+    tf.events.push(event);
   }
-  if (node.ch) {
+  if (node.ch && node.ch.length > 0) {  // 'ch' for "children"
     node.ch.forEach(function(child) {
       tf.crawlTree(node, child);
     });
   }
 };
 
-tf.Event = function(start, end) {
+tf.Event = function(parent, node, start, end) {
+  this.parent = parent;
+  this.node = node;
   this.start = start;
   this.end = end;
 };
 
+tf.Event.parseDateTime = function(input) {
+  // the first part of the range must always have a date but may not have a time
+  return tf.FORMATS.DATE_TIME.parse(input)
+      || tf.FORMATS.DATE.parse(input)
+      || tf.FORMATS.TIME.parse(input);
+};
+
+tf.Event.fromNode = function(parent, node) {
+  if (node.no) {  // 'no' for "note"
+    // date annotations should be alone on just one line of the note.
+    // only the first matching line will be used.
+    var lines = node.no.split('\n');
+    var start, end;
+    for (var i = 0; i < lines.length; i++) {
+      var range = lines[i].split(tf.FORMATS.RANGE_DELIMITER);
+      start = tf.Event.parseDateTime(range[0]);
+      // skip this line if no valid start found, or the start was only time w/o date
+      if (!start || tf.FORMATS.TIME.is(start)) continue;
+      if (range.length == 2) {  // an end was specified using the delimiter
+        end = tf.Event.parseDateTime(range[1]);
+        // skip this line if no valid end found
+        if (!end) continue;
+        if (tf.FORMATS.TIME.is(end)) {
+          // the end is only a time, make its date the same as start's
+          end = moment([start.year(),
+                        start.month(),
+                        start.date(),
+                        end.hour(),
+                        end.minute()]);
+        }
+      } else {  // no end specified
+          if (tf.FORMATS.DATE.is(start)) {  // just a date
+          end = moment(start).add('d', 1);
+        } else {
+          end = moment(start).add('m', tf.config.default_duration_minutes);
+        }
+      }
+      if (start && end) {
+        return new tf.Event(parent, node, start, end);
+      }
+    }
+  }
+  return null;
+};
+
+tf.Event.prototype.toIcal = function() {
+  var icalEvent = new icalendar.VEvent(this.node.id);
+  icalEvent.setDate(this.start.toDate(), this.end.toDate());
+  icalEvent.setSummary(this.node.nm);
+  var desc = this.parent.nm + ' > ' + this.node.nm;
+  if (this.node.ch) {
+    for (var i = 0; i < this.node.ch.length; i++) {
+      desc += '\n    - ' + this.node.ch[i].nm;
+    }
+  }
+  desc += '\n\nhttps://workflowy.com/#/' + this.node.id;
+  icalEvent.setDescription(desc);
+  return icalEvent;
+};
+
 tf.Event.prototype.toString = function() {
-  return this.start.toString + ' ' + this.end.toString();
+  return this.node.nm + ':\n'
+      + this.start.toString() + tf.FORMATS.RANGE_DELIMITER + this.end.toString()
+      + '\n\n';
+};
+
+// Note: the moment library is very forgiving when parsing
+// strings in that it seems to consider all non-alpha chars
+// the same. This unfortunately makes verifying input pretty
+// hard. So, I'm hard-coding some regexs cuz that's easy.
+tf.Format = function(pattern, regex) {
+  this.pattern = pattern;
+  this.regex = regex;
+};
+
+tf.Format.prototype.parse = function(input) {
+  return input.match(this.regex) ? moment(input, this.pattern) : null;
+};
+
+tf.Format.prototype.is = function(date_time) {
+  return date_time._f == this.pattern;
+};
+
+// TODO: make date formatting fully configurable
+tf.FORMATS = {
+  RANGE_DELIMITER: ' .. ',
+  DATE: new tf.Format('YYYY-MM-DD', /^\d{4}-\d{1,2}-\d{1,2}$/),
+  TIME: new tf.Format('HH:mm', /^\d{1,2}:\d{1,2}$/),
+  DATE_TIME: new tf.Format('YYYY-MM-DD HH:mm', /^\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}$/)
+}
+
+tf.makeCalendar = function() {
+  var ical = new icalendar.iCalendar();
+  tf.events.forEach(function(event) {
+    ical.addComponent(event.toIcal());
+  });
+  tf.writeResponse(ical.toString());
 };
 
 /* --- Begin --- */
