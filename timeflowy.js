@@ -296,6 +296,8 @@ tf.FORMATS = {
 
 tf.makeCalendar = function() {
   var ical = new icalendar.iCalendar();
+  ical.addProperty('X-WR-CALNAME', 'Workflowy');
+  ical.addProperty('X-WR-CALDESC', 'Exported with timeflowy. https://github.com/askory/timeflowy');
   tf.events.forEach(function(event) {
     ical.addComponent(event.toIcal());
   });
