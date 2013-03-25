@@ -221,7 +221,11 @@ tf.Event.fromNode = function(parent, node) {
         end = tf.Event.parseDateTime(range[1]);
         // skip this line if no valid end found
         if (!end) continue;
-        if (tf.FORMATS.TIME.is(end)) {
+        if (tf.FORMATS.DATE.is(end)) {
+          // the end is only a date, which means really it should be midnight
+          // of the *following* day
+          end.add('d', 1);
+        } else if (tf.FORMATS.TIME.is(end)) {
           // the end is only a time, make its date the same as start's
           end = moment([start.year(),
                         start.month(),
