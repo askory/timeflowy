@@ -1,4 +1,5 @@
 {
   "username": "YOUR@EMA.IL",
-  "password": "TOPSECRETPASSWORD_YEAH_YOU'RE_STORING_IT_PLAINTEXT_WHATEVS"
+  "password": "TOPSECRETPASSWORD_YEAH_YOU'RE_STORING_IT_PLAINTEXT_WHATEVS",
+  "default_duration_minutes": 60
 }
